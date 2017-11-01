@@ -28,7 +28,6 @@ session = DBSession()
 CLIENT_ID = json.loads(open('client_secret_830917207887-7rl78edq7ruer2nrb5fmof0ossfdvcgn.apps.googleusercontent.com.json', 'r').read())['web']['client_id']
 APPLICATION_NAME = 'Item Catalog App'
 
-# APP_SECRET_KEY = 'bEbhsr5dkUeSVyto3jWl'
 #APP_SECRET_KEY = 'ctHLjfQiLuzwJJjxmuVL'
 
 
@@ -172,7 +171,7 @@ def catalog_item_json(item_id):
 @app.route('/catalog_items/JSON')
 def catalog_items_json():
 	items = session.query(CategoryItem).all()
-	return jsonify(catalog_items=[r.serialize for r in items])
+	return jsonify(catalog_items = [r.serialize for r in items])
 
 
 # Get one catalog category in JSON format
@@ -186,7 +185,7 @@ def catalog_category_json(cat_id):
 @app.route('/catalog_categories/JSON')
 def catalog_categories_json():
 	categories = session.query(Category).all()
-	return jsonify(catalog_categories=[r.serialize for r in categories])
+	return jsonify(catalog_categories = [r.serialize for r in categories])
 
 
 # Get whole catalog data in JSON format
@@ -194,7 +193,7 @@ def catalog_categories_json():
 def catalog_json():
 	items = session.query(CategoryItem).all()
 	categories = session.query(Category).all()
-	return jsonify(catalog_categories=[r.serialize for r in items],catalog_items = [r.serialize for r in categories])
+	return jsonify(catalog_categories = [r.serialize for r in items], catalog_items = [r.serialize for r in categories])
 
 
 # Get whole catalog
