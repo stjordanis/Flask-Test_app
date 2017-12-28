@@ -3,7 +3,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from databasesetup import Base, Category, CategoryItem, engine
+from databasesetup import Base, Category, Item, engine
 from functools import wraps
 
 from flask import session as login_session
@@ -28,7 +28,7 @@ session = DBSession()
 CLIENT_ID = json.loads(open('client_secret_830917207887-7rl78edq7ruer2nrb5fmof0ossfdvcgn.apps.googleusercontent.com.json', 'r').read())['web']['client_id']
 APPLICATION_NAME = 'Item Catalog App'
 
-#APP_SECRET_KEY = 'ctHLjfQiLuzwJJjxmuVL'
+APP_SECRET_KEY = 'ctvLjfQiqRzwJJjxmuVL'
 
 
 # Decorator function for authentication verification
@@ -45,6 +45,9 @@ def login_required(f):
 # Create anti-forgery state token
 @app.route('/login')
 def show_login():
+	'''
+	Shows Login Information
+	'''
 	state = ''.join(random.choice(string.ascii_uppercase + string.digits)  for x in range(32))
 	login_session['state'] = state
 	return render_template('login.html', STATE = state, CLIENT_ID = CLIENT_ID)
@@ -53,11 +56,16 @@ def show_login():
 # Google auth endpoint (connect)
 @app.route('/gconnect', methods = ['POST'])
 def gconnect():
+	'''
+	Allows for connecting with Google
+	'''
 	# Validate state token
 	if request.args.get('state') != login_session['state']:
 		response = make_response(json.dumps('Invalid state parameter.'), 401)
 		response.headers['Content-Type'] = 'application/json'
 		return response
+
+	# Get authorization code
 	code = request.data
 
 	try:
@@ -88,7 +96,7 @@ def gconnect():
 		response.headers['Content-Type'] = 'application/json'
 		return response
 
-	# check whether token's client ID match app's or not
+	# Does token's client ID match app's or not
 	if result['issued_to'] != CLIENT_ID:
 		response = make_response(json.dumps("Token's client ID does not match app's."), 401)
 		response.headers['Content-Type'] = 'application/json'
@@ -97,34 +105,35 @@ def gconnect():
 	stored_access_token = login_session.get('access_token')
 	stored_gplus_id = login_session.get('gplus_id')
 
-	# if user already connected
+	# User already connected
 	if stored_access_token is not None and gplus_id == stored_gplus_id:
 		response = make_response(json.dumps("This user is already connected."), 200)
 		response.headers['Content-Type'] = 'application/json'
 		return response
 
+	# Store the access token in the session for later use.
 	login_session['access_token'] = credentials.access_token
 	login_session['gplus_id'] = gplus_id
 
+	# Get user info
 	userinfo_url = "https://www.googleapis.com/oauth2/v1/userinfo"
 	params = {'access_token': credentials.access_token, 'alt': 'json'}
-	answer = requests.get(userinfo_url, params = params)
+	answer = requests.get(userinfo_url, params=params)
 
 	data = answer.json()
 
-	# Save user data in login_session
 	login_session['username'] = data['name']
 	login_session['picture'] = data['picture']
 	login_session['email'] = data['email']
+	login_session['provider'] = 'google'
 
-	output = ''
-	output += '<h1>Welcome, '
-	output += login_session['username']
-	output += '!</h1>'
-	output += '<img src="'
-	output += login_session['picture']
-	output += ' " style = "width:100px; height:100px; border-radius:150px;">'
-	return output
+	# See if user exists
+	user_id = getUserID(data["email"])
+	if not user_id:
+	    user_id = createUser(login_session)
+	login_session['user_id'] = user_id
+
+	return "Login Successful"
 
 
 # Google auth endpoint (disconnect)
@@ -161,23 +170,23 @@ def gdisconnect():
 
 
 # Get one catalog item in JSON format
-@app.route('/catalog_items/<int:item_id>/JSON')
+@app.route('/cat_items/<int:item_id>/JSON')
 def catalog_item_json(item_id):
-	item = session.query(CategoryItem).filter_by(id=item_id).one()
+	item = session.query(Item).filter_by(id = item_id).one()
 	return jsonify(item.serialize)
 
 
 # Get all catalog items in JSON format
-@app.route('/catalog_items/JSON')
-def catalog_items_json():
-	items = session.query(CategoryItem).all()
-	return jsonify(catalog_items = [r.serialize for r in items])
+@app.route('/cat_items/JSON')
+def items_json():
+	items = session.query(Item).all()
+	return jsonify(cat_items = [r.serialize for r in items])
 
 
 # Get one catalog category in JSON format
 @app.route('/catalog_categories/<int:cat_id>/JSON')
 def catalog_category_json(cat_id):
-	category = session.query(Category).filter_by(id=cat_id).one()
+	category = session.query(Category).filter_by(id = cat_id).one()
 	return jsonify(category.serialize)
 
 
@@ -191,54 +200,54 @@ def catalog_categories_json():
 # Get whole catalog data in JSON format
 @app.route('/catalog/JSON')
 def catalog_json():
-	items = session.query(CategoryItem).all()
+	items = session.query(Item).all()
 	categories = session.query(Category).all()
-	return jsonify(catalog_categories = [r.serialize for r in items], catalog_items = [r.serialize for r in categories])
+	return jsonify(catalog_categories = [r.serialize for r in items], cat_items = [r.serialize for r in categories])
 
 
 # Get whole catalog
 @app.route('/')
-@app.route('/catalog/', methods=['GET'])
+@app.route('/catalog/', methods = ['GET'])
 def catalog():
 	categories = session.query(Category).all()
-	latest_catalog_items = session.query(CategoryItem).order_by(CategoryItem.created_date.desc()).limit(4).all()
-	return render_template('index.html', categories = categories, items = latest_catalog_items)
+	newest_cat_items = session.query(Item).order_by(Item.created.desc()).limit(4).all()
+	return render_template('index.html', categories = categories, items = newest_cat_items)
 
 
 # Get all items of category
 @app.route('/catalog/<int:cat_id>/items/', methods = ['GET'])
-def category_items(cat_id):
+def item_list(cat_id):
 	categories = session.query(Category).all()
-	items = session.query(CategoryItem).filter_by(cat_id=cat_id).all()
+	items = session.query(Item).filter_by(cat_id = cat_id).all()
 	return render_template('index.html', categories = categories, items = items, selected_category = cat_id)
 
 
 # Preview an item description
 @app.route('/catalog/<int:cat_id>/<int:item_id>/', methods = ['GET'])
-def preview_category_item(cat_id, item_id):
-	current_item = session.query(CategoryItem).filter_by(id = item_id, cat_id = cat_id).one()
-	return render_template('item-preview.html', item = current_item)
+def preview_item(cat_id, item_id):
+	current_item = session.query(Item).filter_by(id = item_id, cat_id = cat_id).one()
+	return render_template('previewitem.html', item = current_item)
 
 
 # Create a new catalog item
 @app.route('/catalog/new-menu-item/', methods = ['GET', 'POST'])
 @login_required
-def create_category_item():
+def create_item():
 	if request.method == 'POST':
-		newItem = CategoryItem(name=request.form['name'], description = request.form['description'], cat_id = request.form['category'])
+		newItem = Item(name=request.form['name'], description = request.form['description'], cat_id = request.form['category'])
 		session.add(newItem)
 		session.commit()
 		return redirect(url_for('catalog'))
 	else:
 		categories = session.query(Category).all()
-		return render_template('item-create.html', categories=categories)
+		return render_template('createitem.html', categories = categories)
 
 
 # Edit an item if logged in
-@app.route('/catalog/<int:cat_id>/<int:item_id>/edit', methods=['GET', 'POST'])
+@app.route('/catalog/<int:cat_id>/<int:item_id>/edit', methods = ['GET', 'POST'])
 @login_required
-def edit_category_item(cat_id, item_id):
-	edited_item = session.query(CategoryItem).filter_by(id = item_id, cat_id = cat_id).one()
+def edit_item(cat_id, item_id):
+	edited_item = session.query(Item).filter_by(id = item_id, cat_id = cat_id).one()
 	categories = session.query(Category).all()
 
 	if request.method == 'POST':
@@ -252,24 +261,24 @@ def edit_category_item(cat_id, item_id):
 		session.commit()
 		return redirect(url_for('catalog'))
 	else:
-		return render_template('item-edit.html', item = edited_item, categories = categories)
+		return render_template('edititem.html', item = edited_item, categories = categories)
 
 
 # Delete an item if logged in
 @app.route('/catalog/<int:cat_id>/<int:item_id>/delete', methods = ['GET', 'POST'])
 @login_required
-def delete_category_item(cat_id, item_id):
-	deleted_item = session.query(CategoryItem).filter_by(id = item_id, cat_id = cat_id).one()
+def del_item(cat_id, item_id):
+	deleted_item = session.query(Item).filter_by(id = item_id, cat_id = cat_id).one()
 
 	if request.method == 'POST':
 		session.delete(deleted_item)
 		session.commit()
 		return redirect(url_for('catalog'))
 	else:
-		return render_template('item-delete.html', item = deleted_item, cat_id = cat_id)
+		return render_template('deleteitem.html', item = deleted_item, cat_id = cat_id)
 
 
 if __name__ == '__main__':
-#	app.secret_key = APP_SECRET_KEY
+	app.secret_key = APP_SECRET_KEY
 	app.debug = True
 	app.run(host = '0.0.0.0', port = 8000)

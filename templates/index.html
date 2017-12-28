@@ -1,37 +1,33 @@
-{% extends 'base.html' %}
+{% extends 'main.html' %}
 
 {% block content %}
-<section class="catalog__table">
-	<section class="catalog__section">
-		<h2 class="catalog__title">Categories</h2>
-		<ul class="catalog__list">
+<section class="catalogtable">
+	<section class="catalogsection">
+		<h2 class="catalogtitle">Categories</h2>
+		<ul class="cataloglist">
 			{% for i in categories %}
 			{% if i.id == selected_category %}
-			<li class="catalog__list-item active">
+			<li class="cataloglistitem active">
 				{% else %}
-			<li class="catalog__list-item">
+			<li class="cataloglistitem">
 				{% endif %}
-				<a href="{{ url_for('category_items', cat_id = i.id)}}"
-					class="catalog__list-link">{{ i.name }}</a>
+				<a href="{{ url_for('item_list', cat_id = i.id)}}" class="cataloglistlink">{{ i.name }}</a>
 			</li>
 			{% endfor %}
 		</ul>
 	</section>
-
-	<section class="catalog__section">
-		<h3 class="catalog__title">Items</h3>
-		<ul class="catalog__list">
+	<section class="catalogsection">
+		<h3 class="catalogtitle">Items</h3>
+		<ul class="cataloglist">
 			{% for i in items %}
-			<li class="catalog__list-item">
-				<a href="{{ url_for('preview_category_item', cat_id = i.cat_id, item_id = i.id)}}"
-					class="catalog__list-link">{{ i.name }}</a>
+			<li class="cataloglistitem">
+				<a href="{{ url_for('preview_item', cat_id = i.cat_id, item_id = i.id)}}" class="cataloglistlink">{{ i.name }}</a>
 			</li>
 			{% endfor %}
 		</ul>
 		{% if 'username' in session %}
-		<div class="catalog__button-container">
-			<a href="{{ url_for('create_category_item') }}"
-				class="button">Add Item</a>
+		<div class="catalogbuttoncontainer">
+			<a href="{{ url_for('create_item') }}" class="button">Add Item</a>
 		</div>
 		{% endif %}
 	</section>

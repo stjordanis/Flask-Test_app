@@ -1,0 +1,30 @@
+{% extends 'main.html' %}
+{% block content %}
+<section class="catalogtable catalogtable-item">
+	<form method="post" action="{{ url_for('edit_item', cat_id=item.cat_id, item_id=item.id) }}" class="form">
+		<div class="inputcontainer">
+			<label for="newItemName">Item name:
+				<input type="text" id="newItemName" name="name" class="input" placeholder="{{item.name}}">
+			</label>
+		</div>
+		<div class="inputcontainer">
+			<label for="newItemDescription">Description:
+				<input type="text" id="newItemDescription" name="description" class="input"	placeholder="{{item.description}}">
+			</label>
+		</div>
+		<div class="input-container">
+			<label for="newItemCategory">Category:
+				<select id="newItemCategory" name="category">
+					{% for i in categories %}
+					<option value="{{ i.id }}">{{ i.name }}</option>
+					{% endfor %}
+				</select>
+			</label>
+		</div>
+		<div class="formbutton">
+			<input type="submit" value="Edit" class="button">
+		</div>
+	</form>
+	<a href="{{ url_for('catalog')}}" class="link">Cancel</a>
+</section>
+{% endblock %}
